@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { formatUnits, parseUnits } from "ethers";
-import { BigNumberish } from "ethers";
+import { utils, BigNumberish } from "ethers";
+
+const { formatUnits, parseUnits } = utils;
 
 const usdtContractAddress = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
 
