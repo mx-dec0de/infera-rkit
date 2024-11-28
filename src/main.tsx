@@ -1,5 +1,5 @@
 import "./polyfills.ts";
-import "./global.css";
+import "./index.css";
 import "@rainbow-me/rainbowkit/styles.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
