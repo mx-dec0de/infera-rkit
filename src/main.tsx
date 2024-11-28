@@ -10,7 +10,7 @@ import { polygon } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const config = getDefaultConfig({
   appName: "RainbowKit demo",
-  projectId: "c09195e9de8d63a40ec97d627cfd633c",
+  projectId: "769dc6d5af32829444c9cbc76d834461",
   chains: [polygon],
 });
 const queryClient = new QueryClient();
