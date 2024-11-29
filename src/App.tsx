@@ -168,8 +168,7 @@ function App() {
     </div>
   </div>
 )}
-
-          {isConnected && (
+{isConnected && (
   <>
     <p className="text-white text-center mb-4">
       Connected Address: {address}
@@ -188,7 +187,13 @@ function App() {
       </p>
     )}
 
-    {finalized && !hasClaimed && (
+    {finalized && parseFloat(claimable || "0") === 0 && (
+      <p className="text-white text-center mb-4">
+        We're sorry, but you are not eligible for this airdrop.
+      </p>
+    )}
+
+    {finalized && parseFloat(claimable || "0") > 0 && !hasClaimed && (
       <>
         <p className="text-white text-center mb-4">
           Congratulations! You are eligible to claim your tokens.
@@ -213,6 +218,7 @@ function App() {
     )}
   </>
 )}
+
 
           </div>
         </div>
