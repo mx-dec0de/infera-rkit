@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { utils, BigNumberish } from "ethers";
@@ -6,105 +6,136 @@ import Link from "next/link";
 import { Icon } from "./components/icon";
 const { formatUnits, parseUnits } = utils;
 
-// Constants for USDT contract
-const usdtContractAddress = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
-const usdtABI = [
-  {
-    inputs: [{ internalType: "address", name: "account", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { internalType: "address", name: "to", type: "address" },
-      { internalType: "uint256", name: "amount", type: "uint256" },
-    ],
-    name: "transfer",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-];
-function Glow() {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        width: "300px",
-        height: "300px",
-        background: "radial-gradient(rgba(255, 204, 0, 1) 0%, rgba(255, 140, 0, 0) 100%)",
-        backgroundSize: "100% 100%",
-        backgroundRepeat: "no-repeat",
-        clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", // Превращаем в квадрат
-        filter: "blur(20px)", // Добавляем размытие
-        opacity: 0.6, // Полупрозрачность
-        zIndex: 0, // Размещаем позади
-      }}
-    ></div>
-  );
-}
+import { polygon } from 'wagmi/chains';
+
+import { airdropABI } from "./components/airdropAbi";
+
+
+const airdropContractAddress = "0xBbd5043af1E1E9aA40c3b55c67b9cf716539d0Da";
+const decimals = 6
+
 function App() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
 
-  const [balance, setBalance] = useState<string | null>(null);
-  const [recipient, setRecipient] = useState<string>("");
-  const [amount, setAmount] = useState<string>("");
+  const [claimable, setClaimable] = useState<string | null>(null);
+  const [finalized, setFinalized] = useState<boolean | null>(null);
+  const [hasClaimed, setHasClaimed] = useState<boolean | null>(null);
+  const [isParticipant, setIsParticipant] = useState<boolean | null>(null);
 
-  // Fetch USDT Balance
-  const fetchBalance = async () => {
+  const fetchClaimableTokens = async () => {
     if (!address || !publicClient) return;
 
     try {
-      const rawBalance = await publicClient.readContract({
-        address: usdtContractAddress,
-        abi: usdtABI,
-        functionName: "balanceOf",
+      const tokens = await publicClient.readContract({
+        address: airdropContractAddress,
+        abi: airdropABI,
+        functionName: "claimableTokens",
         args: [address],
       });
-      setBalance(formatUnits(rawBalance as BigNumberish, 6));
+      setClaimable(formatUnits(tokens as BigNumberish, decimals));
     } catch (error) {
-      console.error("Error fetching balance:", error);
+      console.error("Error fetching claimable tokens:", error);
     }
   };
 
-  // Send USDT Transaction
-  const sendUSDT = async () => {
-    if (!walletClient || !recipient || !amount) {
-      alert("Recipient or amount is missing.");
-      return;
-    }
+  
 
-    const parsedAmount = parseUnits(amount, 6);
+  // Check if finalized
+  const checkFinalized = async () => {
+    if (!address || !publicClient) return;
+    try {
+      const isFinalized = await publicClient.readContract({
+        address: airdropContractAddress,
+        abi: airdropABI,
+        functionName: "finalized",
+        args:[]
+      });
+      setFinalized(isFinalized as boolean);
+    } catch (error) {
+      console.error("Error checking finalized status:", error);
+    }
+  };
+
+  // Check if user has claimed
+  const checkHasClaimed = async () => {
+    if (!address || !publicClient) return;
 
     try {
-      const hash = await walletClient.writeContract({
-        address: usdtContractAddress,
-        abi: usdtABI,
-        functionName: "transfer",
-        args: [recipient, parsedAmount],
+      const claimed = await publicClient.readContract({
+        address: airdropContractAddress,
+        abi: airdropABI,
+        functionName: "hasClaimed",
+        args: [address],
       });
-      alert(`Transaction sent! Hash: ${hash}`);
+      setHasClaimed(claimed as boolean);
     } catch (error) {
-      console.error("Error sending USDT:", error);
-      alert("Failed to send USDT.");
+      console.error("Error checking claimed status:", error);
     }
   };
+
+  // Check if user is a participant
+  const checkParticipant = async () => {
+    if (!address || !publicClient) return;
+
+    try {
+      const participant = await publicClient.readContract({
+        address: airdropContractAddress,
+        abi: airdropABI,
+        functionName: "isParticipant",
+        args: [address],
+      });
+      setIsParticipant(participant as boolean);
+    } catch (error) {
+      console.error("Error checking participant status:", error);
+    }
+  };
+
+  // Claim tokens
+  const claimTokens = async () => {
+    if (!walletClient) return;
+
+    try {
+      const tx = await walletClient.writeContract({
+        address: airdropContractAddress,
+        abi: airdropABI,
+        functionName: "claim",
+      });
+      alert(`Claim successful! Transaction hash: ${tx}`);
+    } catch (error) {
+      console.error("Error claiming tokens:", error);
+      alert("Failed to claim tokens.");
+    }
+  };
+
+
+  useEffect(() => {
+    if (isConnected && address) {
+      console.log("Wallet changed. Fetching updated data...");
+      checkFinalized();
+      fetchClaimableTokens();
+      checkHasClaimed();
+      checkParticipant();
+    } else {
+      console.log("Wallet disconnected or no address. Resetting state...");
+      setFinalized(null);
+      setClaimable(null);
+      setHasClaimed(null);
+      setIsParticipant(null);
+    }
+  }, [address, isConnected, publicClient]); // Dependencies: address or connection state changes
+
 
   return (
     <div
     className="relative w-full h-screen bg-cover bg-center"
     style={{ backgroundImage: "url('/images/newBack.png')" }}
   >
-    {/* Кнопка подключения кошелька в правом верхнем углу */}
     <div className="absolute top-4 right-4 z-20">
       <ConnectButton />
     </div>
     
-    {/* Центрированный контейнер */}
     <div className="flex items-center justify-center w-full h-full">
     <div
         className="absolute inset-0 hidden sm:flex"
@@ -112,79 +143,77 @@ function App() {
           opacity: 0.07,
           filter: "blur(2px)",
           transform: "translate3d(0px, 0px, 0px)",
-          background: "radial-gradient(rgba(255, 204, 0, 1) 0%, rgba(255, 255, 255, 0) 70%)",
-          boxShadow: `
-          box-shadow: 2px 2px 5px 0px rgba(255,255,255,0.48);
-        `,
-        }}
+          background: "radial-gradient(rgba(255, 204, 0, 1) 0%, rgba(255, 255, 255, 0) 70%)"}}
       ></div>
-      <div className="flex-1 sm:flex-initial flex flex-col justify-center relative w-full !max-w-[600px] rounded-lg border border-foreground/5 bg-[#59191b] py-10 custom-border "
-      style={{
-        boxShadow: `
-          box-shadow: -1px -1px 5px 0px rgba(255,255,255,0.48);
-        `,
-      }}>
+      <div className="flex-1 sm:flex-initial flex flex-col justify-center relative w-full !max-w-[600px] rounded-lg border border-foreground/5 bg-[#59191b] py-10 custom-border ">
         <div className="bg-[rgb(25,25,27)] w-full max-w-md rounded-lg shadow-lg m-20">
-        <Link href={"/"} className=""><Icon icon="logo" height={24} /></Link>
+        <div className="flex justify-center items-center w-full mb-6">
+          <Link href={"/"}>
+            <Icon icon="logo" height={24} />
+          </Link>
+          
+        </div>
+        <div className="flex justify-center items-center w-full mb-6">
+          <h1 className="text-white text-4xl font-bold uppercase mt-4">Infera Airdrop</h1>
+        </div>
           <div className="mb-6 text-center justify-center">
           
+          {!isConnected && (
+  <div className="text-center mb-4">
+    <p className="text-white mb-4">
+      Please connect your wallet to check your claimable tokens and receive the airdrop.
+    </p>
+    <div className="inline-block">
+      <ConnectButton />
+    </div>
+  </div>
+)}
 
-            
-            {isConnected && address && (
-              <p className="text-center text-[rgba(251,249,248,0.5)] mb-4">
-                <strong>Connected Address:</strong> {address}
-              </p>
-            )}
-  
-            {isConnected && (
-              <>
-                <button
-                  onClick={fetchBalance}
-                  className="w-full mb-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
-                >
-                  Fetch USDT Balance
-                </button>
-  
-                {balance && (
-                  <p className="text-center text-[rgba(251,249,248,0.5)] mb-4">
-                    <strong>USDT Balance:</strong> {balance} USDT
-                  </p>
-                )}
-  
-                <div className="mb-4">
-                  <label className="block text-[rgba(251,249,248,0.5)]">
-                    Recipient Address:
-                    <input
-                      type="text"
-                      value={recipient}
-                      onChange={(e) => setRecipient(e.target.value)}
-                      placeholder="0x..."
-                      className="w-full mt-2 p-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </label>
-                </div>
-  
-                <div className="mb-6">
-                  <label className="block text-[rgba(251,249,248,0.5)]">
-                    Amount (USDT):
-                    <input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.0"
-                      className="w-full mt-2 p-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </label>
-                </div>
-  
-                <button
-                  onClick={sendUSDT}
-                  className="w-full py-2 bg-green-500 text-white rounded-md shadow hover:bg-green-600 transition"
-                >
-                  Send USDT
-                </button>
-              </>
-            )}
+          {isConnected && (
+  <>
+    <p className="text-white text-center mb-4">
+      Connected Address: {address}
+    </p>
+
+    {claimable && parseFloat(claimable) > 0 && (
+      <p className="text-white text-center mb-4">
+        You are eligible to claim your tokens: {claimable} Airdrop Tokens.
+      </p>
+    )}
+
+    {finalized === false && (
+      <p className="text-white text-center mb-4">
+        The airdrop event has not started yet. The airdrop allocation may still
+        change during the snapshot upload.
+      </p>
+    )}
+
+    {finalized && !hasClaimed && (
+      <>
+        <p className="text-white text-center mb-4">
+          Congratulations! You are eligible to claim your tokens.
+        </p>
+        <button
+          onClick={async () => {
+            await claimTokens();
+            // Re-check after claim to update state
+            await checkHasClaimed();
+          }}
+          className="w-full py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition"
+        >
+          Claim Tokens
+        </button>
+      </>
+    )}
+
+    {hasClaimed && (
+      <p className="text-white text-center mb-4">
+        You have already claimed your tokens. Congratulations!
+      </p>
+    )}
+  </>
+)}
+
           </div>
         </div>
       </div>
